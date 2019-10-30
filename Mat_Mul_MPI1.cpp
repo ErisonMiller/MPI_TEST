@@ -1,4 +1,8 @@
-#include "mpi.h"
+#pragma GCC optimize("O3","unroll-loops","omit-frame-pointer","inline") //Optimization flags
+#pragma GCC option("arch=native","tune=native","no-zero-upper") //Enable AVX
+#pragma GCC target("avx2")  //Enable AVX
+
+#include <mpi.h>
 #include <stdio.h>
 #include <iostream>
 #include <stdlib.h>
@@ -17,18 +21,19 @@
 
 inline void MatMull(const float* a, const float* b, float *c, int a_r, int a_c) {
 	
-	//what line of a 
-	//#pragma omp parallel for
-	//for (int i = 0; i < a_r; i++) {
-	//	//what line of b
-	//	for (unsigned l = 0; l < a_c; l++) {
-	//		c[i * a_r + l] = 0;
-	//		for (unsigned j = 0; j < a_c; j ++) {
-	//			c[i * a_r + l] += a[i * a_c + j] * b[l * a_c + j];
-	//		}
-	//	}	
-	//}
-	
+	//what line of a
+	#pragma omp parallel for shared(a, b, c)
+	for (int i = 0; i < a_r; i++) {
+		//what line of b
+		for (unsigned l = 0; l < a_c; l++) {
+			c[i * a_c + l] = 0;
+			for (unsigned j = 0; j < a_c; j ++) {
+				c[i * a_c + l] += a[i * a_c + j] * b[l * a_c + j];
+			}
+		}
+	}
+	return;
+
 	//#pragma omp parallel for
 	//for (int i = 0; i < a_r; i++) {
 	//	//what line of b
@@ -98,14 +103,37 @@ inline void MatMull(const float* a, const float* b, float *c, int a_r, int a_c) 
 			//what colun of a and b
 			for (int j = 0; j < a_c; j += 64) {
 				//to use 100% of cpu
-				VecSum[0] = _mm256_fmadd_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), VecSum[0]); aa += 8; bb += 8;
-				VecSum[1] = _mm256_fmadd_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), VecSum[1]); aa += 8; bb += 8;
-				VecSum[2] = _mm256_fmadd_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), VecSum[2]); aa += 8; bb += 8;
-				VecSum[3] = _mm256_fmadd_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), VecSum[3]); aa += 8; bb += 8;
-				VecSum[4] = _mm256_fmadd_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), VecSum[4]); aa += 8; bb += 8;
-				VecSum[5] = _mm256_fmadd_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), VecSum[5]); aa += 8; bb += 8;
-				VecSum[6] = _mm256_fmadd_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), VecSum[6]); aa += 8; bb += 8;
-				VecSum[7] = _mm256_fmadd_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), VecSum[7]); aa += 8; bb += 8;
+VecSum[0] = _mm256_add_ps(_mm256_mul_ps(_mm256_load_ps(aa), _mm256_load_ps(bb)),
+VecSum[0]);
+aa += 8; bb += 8;
+
+VecSum[1] = _mm256_add_ps(_mm256_mul_ps(_mm256_load_ps(aa), _mm256_load_ps(bb)),
+VecSum[1]);
+aa += 8; bb += 8;
+
+VecSum[2] = _mm256_add_ps(_mm256_mul_ps(_mm256_load_ps(aa), _mm256_load_ps(bb)),
+VecSum[2]);
+aa += 8; bb += 8;
+
+VecSum[3] = _mm256_add_ps(_mm256_mul_ps(_mm256_load_ps(aa), _mm256_load_ps(bb)),
+VecSum[3]);
+aa += 8; bb += 8;
+
+VecSum[4] = _mm256_add_ps(_mm256_mul_ps(_mm256_load_ps(aa), _mm256_load_ps(bb)),
+VecSum[4]);
+aa += 8; bb += 8;
+
+VecSum[5] = _mm256_add_ps(_mm256_mul_ps(_mm256_load_ps(aa), _mm256_load_ps(bb)),
+VecSum[5]);
+aa += 8; bb += 8;
+
+VecSum[6] = _mm256_add_ps(_mm256_mul_ps(_mm256_load_ps(aa), _mm256_load_ps(bb)),
+VecSum[6]);
+aa += 8; bb += 8;
+
+VecSum[7] = _mm256_add_ps(_mm256_mul_ps(_mm256_load_ps(aa), _mm256_load_ps(bb)),
+VecSum[7]);
+aa += 8; bb += 8;
 			}
 			//sum the vectors to discover the value of c[i][l]
 			VecSum[0] = _mm256_add_ps(VecSum[0], VecSum[4]);
@@ -130,29 +158,6 @@ inline void MatMull(const float* a, const float* b, float *c, int a_r, int a_c) 
 
 int main(int argc, char* argv[])
 {
-
-	//float* a = new float[MATSIZE * MATSIZE]();	/* matrix A to be multiplied */
-	//float* b = new float[MATSIZE * MATSIZE]();	/* matrix B to be multiplied */
-	//float* c = new float[MATSIZE * MATSIZE]();	/* result matrix C */
-	//for (int i = 0; i < MATSIZE; i++) {
-	//	for (int j = 0; j < MATSIZE; j++) {
-	//		a[i * MATSIZE + j] = 1;
-	//		b[i * MATSIZE + j] = -2;
-	//	}
-	//}
-	//
-	//clock_t t;
-	//t = clock();
-	//
-	//MatMull(a, b, c, MATSIZE, MATSIZE);
-	//
-	//t = clock() - t;
-	//std::cout << "levou " << t << " clocks ou " << ((float)t) / CLOCKS_PER_SEC << " segundos ou " << 1.0f / (((float)t) / CLOCKS_PER_SEC) << " fps\n";
-	//
-	//delete[] a;
-	//delete[] b;
-	//delete[] c;
-
 	int	numtasks = 0,				/* number of tasks in partition */
 		taskid,						/* a task identifier */
 		numworkers,					/* number of worker tasks */
@@ -162,7 +167,6 @@ int main(int argc, char* argv[])
 		rows,						/* rows of matrix A sent to each worker */
 		averow, extra, offset,		/* used to determine rows sent to each worker */
 		i, j, k, rc = 0;			/* misc */
-	
 	
 	MPI_Status status;
 	MPI_Init(&argc, &argv);
@@ -197,7 +201,6 @@ int main(int argc, char* argv[])
 
 		MPI_Bcast(b, MATSIZE * MATSIZE, MPI_FLOAT, MASTER, MPI_COMM_WORLD);
 
-	
 		/* Send matrix data to the worker tasks */
 		averow = MATSIZE / numworkers;
 		extra = MATSIZE % numworkers;
@@ -235,8 +238,8 @@ int main(int argc, char* argv[])
 			}
 		}
 	}
-	
-	
+
+
 	/**************************** worker task ************************************/
 	if (taskid > MASTER)
 	{
@@ -247,7 +250,7 @@ int main(int argc, char* argv[])
 		MPI_Recv(&rows, 1, MPI_INT, MASTER, mtype, MPI_COMM_WORLD, &status);
 		MPI_Recv(a, rows * MATSIZE, MPI_FLOAT, MASTER, mtype, MPI_COMM_WORLD, &status);
 		//MPI_Recv(b, MATSIZE * MATSIZE, MPI_FLOAT, MASTER, mtype, MPI_COMM_WORLD, &status);
-	
+
 		MatMull(a, b, c, rows, MATSIZE);
 		//for (k = 0; k < NCB; k++){
 		//	for (i = 0; i < rows; i++)

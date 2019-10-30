@@ -2,12 +2,13 @@
 #include <iostream>
 #include <stdlib.h>
 #include <time.h>
-#include "mpi.h"
+#include <mpi.h>
 #include <omp.h>
 #include <algorithm>
 #include <vector>
+#include <math.h>
 
-#define USE_OMP 1
+#define USE_OMP 0
 
 #define MASTER 0               /* taskid of first task */
 #define FROM_MASTER 1          /* setting a message type */
@@ -26,7 +27,7 @@ Type Rand_Data() {
 }
 
 int getBucket(const Type &t) {
-	return std::floor(t * 0.01f);
+	return floor(t * 0.01f);
 }
 
 /*--------------------------------------------------------------------*/
@@ -37,7 +38,7 @@ int main(int argc, char* argv[]) {
 		mtype,						/* message type */
 		rows,						/* rows of matrix A sent to each worker */
 		averow, extra, offset,		/* used to determine rows sent to each worker */
-		i, j, k, rc = 0;			/* misc */
+		j, k, rc = 0;			/* misc */
 
 	MPI_Status status;
 	MPI_Init(&argc, &argv);
@@ -65,7 +66,7 @@ int main(int argc, char* argv[]) {
 		}
 	
 		Bucket buckets[NUM_BUCKETS];
-		for (i = 0; i < NUM_BUCKETS; i++) {
+		for (int i = 0; i < NUM_BUCKETS; i++) {
 			buckets[i].reserve(DATA_SIZE / NUM_BUCKETS);
 		}
 	
@@ -78,7 +79,7 @@ int main(int argc, char* argv[]) {
 		
 		#if !USE_OMP
 
-		for (i = 0; i < DATA_SIZE; i++) {
+		for (int i = 0; i < DATA_SIZE; i++) {
 			buckets[getBucket(data[i])].push_back(data[i]);
 		}
 		#else
@@ -114,7 +115,7 @@ int main(int argc, char* argv[]) {
 		//#pragma omp parallel for
 		for (int dest = 1; dest <= numworkers; dest++)
 		{
-			rows = (dest <= extra) ? averow + extra : averow;
+			rows = (dest == numworkers) ? averow + extra : averow;
 			MPI_Send(&rows, 1, MPI_INT, dest, mtype, MPI_COMM_WORLD);
 			for (j = 0; j < rows; j++) {
 				unsigned bucket_size = buckets[offset + j].size();
@@ -130,7 +131,7 @@ int main(int argc, char* argv[]) {
 		/* Receive results from worker tasks */
 		mtype = FROM_WORKER;
 		int posi = 0;
-		for (i = 0; i < numworkers; i++)
+		for (int i = 0; i < numworkers; i++)
 		{
 			source = i+1;
 			MPI_Recv(&rows, 1, MPI_INT, source, mtype, MPI_COMM_WORLD, &status);
@@ -142,7 +143,7 @@ int main(int argc, char* argv[]) {
 		double finish = MPI_Wtime();
 		printf("Done in %f seconds.\n", finish - start);
 		
-		for (i = 1; i < DATA_SIZE; i++) {
+		for (int i = 1; i < DATA_SIZE; i++) {
 			if (data[i - 1] > data[i])std::cout << "deu errado\n";
 		}
 	}
@@ -156,7 +157,7 @@ int main(int argc, char* argv[]) {
 
 		buckets_position[0] = 0;
 		int posi = 0;
-		for (i = 0; i < buckets; i++) {
+		for (int i = 0; i < buckets; i++) {
 
 			MPI_Recv(&rows, 1, MPI_INT, MASTER, mtype, MPI_COMM_WORLD, &status);
 
@@ -168,7 +169,7 @@ int main(int argc, char* argv[]) {
 		}
 
 		#pragma omp parallel for
-		for (i = 0; i < buckets; i++) {
+		for (int i = 0; i < buckets; i++) {
 			std::sort(data + buckets_position[i], data + buckets_position[i + 1]);
 		}
 		

@@ -1,22 +1,23 @@
-#include "mpi.h"
+#pragma GCC optimize("O3","unroll-loops","omit-frame-pointer","inline") //Optimization flags
+#pragma GCC option("arch=native","tune=native","no-zero-upper") //Enable AVX
+#pragma GCC target("avx2")  //Enable AVX
+
+#include <mpi.h>
 #include <stdio.h>
 #include <iostream>
 #include <stdlib.h>
 #include <immintrin.h>
 #include <time.h>
-
+#include <cstring>
 #include <vector>
 
-#define MATSIZE 256
+#define MATSIZE 2048
 
-#define NUM_DIVISIONS 9
+#define NUM_DIVISIONS 4
 
 #define MASTER 0               /* taskid of first task */
 #define FROM_MASTER 1          /* setting a message type */
 #define FROM_WORKER 2          /* setting a message type */
-
-
-#define GET_FLOAT_M128(v128,I) _mm_cvtss_f32(_mm_shuffle_ps(v128, v128, I))
 
 
 inline void MatMull(const float* _a, const float* _b, float *_c, int a_r, int b_c) {
@@ -31,105 +32,9 @@ inline void MatMull(const float* _a, const float* _b, float *_c, int a_r, int b_
 				_c[i * b_c + l] += _a[i * MATSIZE + j] * _b[l * MATSIZE + j];
 			}
 			//_c[i * b_c + l] = 256;
-	
-		}	
+		}
 	}
 
-	
-	//#pragma omp parallel for
-	//for (int i = 0; i < a_r; i++) {
-	//	//what line of b
-	//	for (unsigned l = 0; l < a_c; l++) {
-	//		//__m256 VecSum[8];
-	//		//waht colun of a and b
-	//		const float* aa = a + i * a_c;
-	//		const float* bb = b + l * a_c;
-	//		float v1 = 0;
-	//		float v2 = 0;
-	//		float v3 = 0;
-	//		float v4 = 0;
-	//		float v5 = 0;
-	//		float v6 = 0;
-	//		float v7 = 0;
-	//		float v8 = 0;
-	//		for (unsigned j = 0; j < a_c; j += 64) {
-	//			v1 += _mm_cvtss_f32(_mm256_castps256_ps128(_mm256_dp_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), 0xff))); aa += 8; bb += 8;
-	//			v2 += _mm_cvtss_f32(_mm256_castps256_ps128(_mm256_dp_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), 0xff))); aa += 8; bb += 8;
-	//			v3 += _mm_cvtss_f32(_mm256_castps256_ps128(_mm256_dp_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), 0xff))); aa += 8; bb += 8;
-	//			v4 += _mm_cvtss_f32(_mm256_castps256_ps128(_mm256_dp_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), 0xff))); aa += 8; bb += 8;
-	//			v5 += _mm_cvtss_f32(_mm256_castps256_ps128(_mm256_dp_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), 0xff))); aa += 8; bb += 8;
-	//			v6 += _mm_cvtss_f32(_mm256_castps256_ps128(_mm256_dp_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), 0xff))); aa += 8; bb += 8;
-	//			v7 += _mm_cvtss_f32(_mm256_castps256_ps128(_mm256_dp_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), 0xff))); aa += 8; bb += 8;
-	//			v8 += _mm_cvtss_f32(_mm256_castps256_ps128(_mm256_dp_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), 0xff))); aa += 8; bb += 8;
-	//
-	//		}
-	//		c[i * a_r + l] = v1 + v2 + v3 + v4 + v5 + v6 + v7 + v8;
-	//	}
-	//}
-	
-
-	//#pragma omp parallel for
-	//for (int i = 0; i < a_r; i++) {
-	//	//what line of b
-	//	for (unsigned l = 0; l < a_c; l++) {
-	//		//__m256 VecSum[8];
-	//		//waht colun of a and b
-	//		c[i * a_r + l] = 0;
-	//		for (unsigned j = 0; j < a_c; j += 8) {
-	//			
-	//			c[i * a_r + l] += _mm_cvtss_f32(_mm256_castps256_ps128(
-	//				_mm256_dp_ps(_mm256_load_ps(a + i * a_c + j + 00), _mm256_load_ps(b + l * a_c + j + 00), 0xff)
-	//			));
-	//		}
-	//	}
-	//}
-
-
-
-	//#pragma omp parallel for shared(a,b,c)
-	//for (int i = 0; i < a_r; i++) {
-	//	//what line of b
-	//	for (int l = 0; l < a_c; l++) {
-	//		const float* aa = a + i * a_c;
-	//		const float* bb = b + l * a_c;
-	//		__m256 VecSum[8]{
-	//			_mm256_setzero_ps(),
-	//			_mm256_setzero_ps(),
-	//			_mm256_setzero_ps(),
-	//			_mm256_setzero_ps(),
-	//			_mm256_setzero_ps(),
-	//			_mm256_setzero_ps(),
-	//			_mm256_setzero_ps(),
-	//			_mm256_setzero_ps()
-	//		};
-	//		//what colun of a and b
-	//		for (int j = 0; j < a_c; j += 64) {
-	//			//to use 100% of cpu
-	//			VecSum[0] = _mm256_fmadd_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), VecSum[0]); aa += 8; bb += 8;
-	//			VecSum[1] = _mm256_fmadd_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), VecSum[1]); aa += 8; bb += 8;
-	//			VecSum[2] = _mm256_fmadd_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), VecSum[2]); aa += 8; bb += 8;
-	//			VecSum[3] = _mm256_fmadd_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), VecSum[3]); aa += 8; bb += 8;
-	//			VecSum[4] = _mm256_fmadd_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), VecSum[4]); aa += 8; bb += 8;
-	//			VecSum[5] = _mm256_fmadd_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), VecSum[5]); aa += 8; bb += 8;
-	//			VecSum[6] = _mm256_fmadd_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), VecSum[6]); aa += 8; bb += 8;
-	//			VecSum[7] = _mm256_fmadd_ps(_mm256_load_ps(aa), _mm256_load_ps(bb), VecSum[7]); aa += 8; bb += 8;
-	//		}
-	//		//sum the vectors to discover the value of c[i][l]
-	//		VecSum[0] = _mm256_add_ps(VecSum[0], VecSum[4]);
-	//		VecSum[1] = _mm256_add_ps(VecSum[1], VecSum[5]);
-	//		VecSum[2] = _mm256_add_ps(VecSum[2], VecSum[6]);
-	//		VecSum[3] = _mm256_add_ps(VecSum[3], VecSum[7]);
-	//		
-	//		VecSum[0] = _mm256_add_ps(VecSum[0], VecSum[1]);
-	//		VecSum[2] = _mm256_add_ps(VecSum[2], VecSum[3]);
-	//		
-	//		VecSum[0] = _mm256_add_ps(VecSum[0], VecSum[2]);
-	//		
-	//		__m128 r = _mm_add_ps(_mm256_extractf128_ps(VecSum[0], 0), _mm256_extractf128_ps(VecSum[0], 1));
-	//		c[i * a_c + l] = GET_FLOAT_M128(r, 0) + GET_FLOAT_M128(r, 1) + GET_FLOAT_M128(r, 2) + GET_FLOAT_M128(r, 3);
-	//
-	//	}
-	//}
 }
 
 
@@ -198,7 +103,7 @@ void Master_Recieve() {
 		MPI_Recv(ax, block.rows * block.cols, MPI_FLOAT, status.MPI_SOURCE, FROM_WORKER, MPI_COMM_WORLD, &status);
 
 		for (int i = 0; i < block.rows; i++) {
-			memcpy(c + (block.y + i) * MATSIZE + block.x, ax + i * block.cols, block.cols * sizeof(float));
+			std::memcpy(c + (block.y + i) * MATSIZE + block.x, ax + i * block.cols, block.cols * sizeof(float));
 		}
 
 		free_nodes.push_back(status.MPI_SOURCE);
@@ -252,7 +157,6 @@ int main(int argc, char* argv[])
 		rows,						/* rows of matrix A sent to each worker */
 		averow, extra, offset,		/* used to determine rows sent to each worker */
 		rc = 0;			/* misc */
-	
 	
 	MPI_Status status;
 	MPI_Init(&argc, &argv);
